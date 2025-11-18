@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phrase Nets — Protótipo MVP</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- D3.js v7 -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Phrase Nets — Protótipo MVP</h1>
+    <p>Carregue um texto, ajuste parâmetros e gere uma <em>Phrase Net</em> interativa no navegador (client-side).</p>
+  </header>
+
+  <main>
+    <section id="controls">
+      <div class="control-row">
+        <label for="inputText">Texto (ou arraste um .txt):</label>
+        <textarea id="inputText" placeholder="Cole aqui o texto..."></textarea>
+      </div>
+
+      <div class="control-row two-col">
+        <div>
+          <label for="relationType">Tipo de relação</label>
+          <select id="relationType">
+            <option value="window">Coocorrência em janela</option>
+            <option value="sentence">Coocorrência na mesma frase</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="windowSize">Tamanho da janela (palavras)</label>
+          <input id="windowSize" type="number" min="1" max="10" value="3" />
+        </div>
+      </div>
+
+      <div class="control-row two-col">
+        <div>
+          <label><input type="checkbox" id="useStopwords" checked /> Remover stopwords</label>
+        </div>
+        <div>
+          <label for="minEdgeWeight">Peso mínimo da aresta</label>
+          <input id="minEdgeWeight" type="range" min="1" max="10" value="1" />
+          <span id="minEdgeVal">1</span>
+        </div>
+      </div>
+
+      <div class="control-row buttons">
+        <button id="generate">Gerar Phrase Net</button>
+        <button id="exportJson">Exportar JSON</button>
+        <button id="saveSvg">Salvar SVG</button>
+        <button id="resetBtn">Resetar</button>
+      </div>
+
+      <div class="control-row meta">
+        <small>Exibir apenas os <strong>top</strong> <input id="topN" type="number" min="10" max="1000" value="200" style="width:80px;" /> palavras por frequência.</small>
+      </div>
+    </section>
+
+    <section id="visualization">
+      <svg id="svgCanvas" width="1000" height="700"></svg>
+      <aside id="sidepanel">
+        <h3>Detalhes do nó</h3>
+        <div id="nodeDetails">Selecione um nó para ver detalhes.</div>
+        <h4>Palavras mais frequentes</h4>
+        <ol id="freqList"></ol>
+      </aside>
+    </section>
+  </main>
+
+  <footer>
+    <p>Protótipo MVP — processamento totalmente em browser. Desenvolvido para disciplina <a href="equipe.html">FT107 - Visualização de Informação</a>.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
