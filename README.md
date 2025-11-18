@@ -1,5 +1,6 @@
 # phrase-net
 Visualização interativa da rede de frases usando D3.js
+
 Uma visualização interativa baseada no conceito de **Phrase Nets**, utilizando **D3.js** para explorar relações entre palavras em textos.  
 Este projeto permite analisar padrões linguísticos por meio de grafos dirigidos, exibindo a direção real entre palavras conforme sua ordem no texto.
 
