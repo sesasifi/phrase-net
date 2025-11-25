@@ -7,8 +7,37 @@ const DEFAULT_STOPWORDS = new Set([
   "a","à","ao","aos","as","o","os","e","é","em","um","uma","uns","umas","de","do","da","dos","das",
   "que","por","para","com","como","se","na","no","nas","nos","pelos","pelo","pela","pelas","suas","seu",
   "eu","tu","ele","ela","eles","elas","nós","vós","me","te","lhe","nos","vos","lhe","lhes","sim","não","mais","também"
-,"i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself", "they", "them", "their", "theirs", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now"
+,"of","is", "are", "at", "the", "a", "and" 
+,"i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself", "they", "them", "their", "theirs", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "am", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "an", "but", "if", "or", "because", "as", "until", "while", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now"
 ]);
+
+// Detect "A <relation phrase> B" relations inside a sentence (tokens already normalized).
+// relationPhrase may be one or more words (e.g. "and", "is a", "of the").
+// validNodesSet is optional: if provided only pairs where both A and B belong to that set are returned.
+function extractRelationPairs(tokens, relationPhrase, validNodesSet = null) {
+  const relParts = relationPhrase.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (relParts.length === 0) return [];
+
+  const pairs = [];
+  // A at i, relation parts at i+1 ... i+relLen, B at i+relLen+1
+  const relLen = relParts.length;
+  for (let i = 0; i < tokens.length - (relLen + 1); i++) {
+    const A = tokens[i];
+    // build slice of tokens that correspond to the candidate relation
+    const candidateRel = tokens.slice(i + 1, i + 1 + relLen).join(' ');
+    if (candidateRel == relParts.join(' ')) {
+      const B = tokens[i + 1 + relLen];
+      if (!A || !B || A === B) continue;
+      if (validNodesSet) {
+        if (!validNodesSet.has(A) || !validNodesSet.has(B)) continue;
+      }
+      pairs.push([A, B]);
+    }
+  }
+  return pairs;
+}
+
+
 
 // simple sentence splitter (keeps punctuation as boundary)
 function splitIntoSentences(text){
@@ -29,63 +58,87 @@ function normalizeToken(tok){
   return tok.toLowerCase().replace(/^'+|'+$/g,''); // trim leading/trailing apostrophes
 }
 
-// Build graph: nodes map and edges map
-function buildGraphFromText(rawText, opts){
-  const sentences = splitIntoSentences(rawText);
-  const tokensBySentence = sentences.map(s => tokenize(s).map(normalizeToken).filter(Boolean));
-  const nodesCounts = new Map();
-  const edges = new Map(); // key "a||b" ordered lexicographically
 
+// Build graph: nodes map and edges map (two-pass, supports multi-word relation phrases)
+function buildGraphFromText(rawText, opts){//;
+  const sentences = splitIntoSentences(rawText);//;
+  const tokensBySentence = sentences.map(s => tokenize(s).map(normalizeToken).filter(Boolean));//;
+
+  // ---------- PASS 1: count nodes (using stopword option) ----------
+  const nodesCounts = new Map();//;
   for(const tokens of tokensBySentence){
-    // optionally remove stopwords
     const filtered = opts.useStopwords ? tokens.filter(t=>!DEFAULT_STOPWORDS.has(t)) : tokens;
-    // count nodes
     for(const t of filtered){
       nodesCounts.set(t, (nodesCounts.get(t)||0) + 1);
     }
-    // build relations
-    if(opts.relationType === 'window'){
-      const w = Math.max(1, opts.windowSize|0);
-      for(let i=0;i<filtered.length;i++){
-        for(let j=i+1;j<Math.min(filtered.length, i+w)+1;j++){
-          const a = filtered[i], b = filtered[j];
-          if(!a || !b || a===b) continue;
-          const [x,y] = a< b ? [a,b] : [b,a];
-          const key = `${x}||${y}`;
-          edges.set(key, (edges.get(key)||0) + 1);
-        }
-      }
-    } else { // sentence cooccurrence
-      for(let i=0;i<filtered.length;i++){
-        for(let j=i+1;j<filtered.length;j++){
-          const a = filtered[i], b = filtered[j];
-          if(!a || !b || a===b) continue;
-          const [x,y] = a< b ? [a,b] : [b,a];
-          const key = `${x}||${y}`;
-          edges.set(key, (edges.get(key)||0) + 1);
-        }
-      }
-    }
   }
 
-  // convert to arrays
+  // convert counts -> nodes array and apply topN
   let nodesArr = Array.from(nodesCounts.entries()).map(([k,v])=>({id:k, count:v}));
-  // sort by freq desc and keep topN if specified
   if(opts.topN && nodesArr.length > opts.topN){
     nodesArr.sort((a,b)=>b.count - a.count);
     nodesArr = nodesArr.slice(0, opts.topN);
   }
   const nodeSet = new Set(nodesArr.map(n=>n.id));
 
+  // ---------- PASS 2: build edges using final nodeSet ----------
+  const edges = new Map(); // key "a||b" ordered lexicographically
+  const relPhrase = (opts.relationWord && opts.relationWord.trim()) ? opts.relationWord.toLowerCase().trim() : null;
+
+  for(const tokens of tokensBySentence){
+    // filtered tokens for window/sentence cooccurrence (stopwords respected)
+    const filtered = opts.useStopwords ? tokens.filter(t=>!DEFAULT_STOPWORDS.has(t)) : tokens;
+
+    if (opts.relationType === 'orthographic' && relPhrase) {
+      // relation-based extraction: use original tokens for pattern matching but only
+      // add edges when both A and B are in final nodeSet.
+      const pairs = extractRelationPairs(tokens, relPhrase);
+      for (const [a, b] of pairs) {
+        if (!nodeSet.has(a) || !nodeSet.has(b)) continue;
+        if (a === b) continue;
+        //const [x, y] = a < b ? [a, b] : [b, a];
+        const [x, y] = [a, b];
+        const key = `${x}||${y}`;
+        edges.set(key, (edges.get(key) || 0) + 1);
+      }
+
+    // } else if (opts.relationType === 'window') {
+    //   const w = Math.max(1, opts.windowSize|0);
+    //   for(let i=0;i<filtered.length;i++){
+    //     for(let j=i+1;j<Math.min(filtered.length, i+w)+1;j++){
+    //       const a = filtered[i], b = filtered[j];
+    //       if(!a || !b || a===b) continue;
+    //       if (!nodeSet.has(a) || !nodeSet.has(b)) continue;
+    //       const [x,y] = a< b ? [a,b] : [b,a];
+    //       const key = `${x}||${y}`;
+    //       edges.set(key, (edges.get(key)||0) + 1);
+    //     }
+    //   }
+
+    } else if (opts.relationType === 'sentence'){ // sentence cooccurrence
+      for(let i=0;i<filtered.length;i++){
+        for(let j=i+1;j<filtered.length;j++){
+          const a = filtered[i], b = filtered[j];
+          if(!a || !b || a===b) continue;
+          if (!nodeSet.has(a) || !nodeSet.has(b)) continue;
+          //const [x,y] = a< b ? [a,b] : [b,a];
+          const [x,y] = [a,b];
+          const key = `${x}||${y}`;
+          edges.set(key, (edges.get(key)||0) + 1);
+        }
+      }
+    }
+  }
+
+  // ---------- convert edges map to array and apply minEdgeWeight ----------
   let edgesArr = Array.from(edges.entries()).map(([k,v])=>{
     const [a,b] = k.split('||');
     return {source:a, target:b, weight:v};
-  }).filter(e=> nodeSet.has(e.source) && nodeSet.has(e.target) );
+  });
 
-  // apply min edge weight threshold
   edgesArr = edgesArr.filter(e=> e.weight >= opts.minEdgeWeight);
 
-  // recompute node degrees and maybe prune isolated nodes
+  // recompute node degrees and prune isolated nodes
   const degree = new Map();
   for(const n of nodesArr) degree.set(n.id, 0);
   for(const e of edgesArr){
@@ -108,12 +161,13 @@ const container = svg.append('g').attr('class','container');
 svg.append('defs').append('marker')
   .attr('id','arrow')
   .attr('viewBox','-0 -5 10 10')
-  .attr('refX',13)
+  .attr('refX',0)//0
   .attr('refY',0)
   .attr('orient','auto')
-  .attr('markerWidth',3)
-  .attr('markerHeight',3)
-  .attr('xoverflow','visible')
+  .attr('markerWidth',4)
+  .attr('markerHeight',4)
+  //.attr('xoverflow','visible')
+  .attr('xoverflow','hidden')
   .append('svg:path')
   .attr('d','M 0,-5 L 10 ,0 L 0,5')
   .attr('fill','#999')
@@ -148,16 +202,19 @@ function renderGraph(graph){
 
   // force simulation
   simulation = d3.forceSimulation(graph.nodes)
-    .force('link', d3.forceLink(graph.edges).id(d=>d.id).distance(80).strength(0.6))
+    .force('link', d3.forceLink(graph.edges).id(d=>d.id).distance(150).strength(0.6))
     .force('charge', d3.forceManyBody().strength(-200))
     .force('center', d3.forceCenter(width/2, height/2))
     .force('collision', d3.forceCollide().radius(d=> sizeScale(d.count)+4));
 
   linkGroup = container.append('g').attr('class','links')
-    .selectAll('line').data(graph.edges).enter()
-      .append('line')
+    .selectAll('line')//line
+    .data(graph.edges)
+    .enter()
+      .append('line')//line
       .attr('stroke-width', d=> Math.max(1, weightScale(d.weight)))
       .attr('stroke','#999')
+      //.attr('fill','none')
       .attr('stroke-opacity',0.6)
       .attr('marker-end','url(#arrow)');
 
@@ -171,7 +228,15 @@ function renderGraph(graph){
       );
 
   nodeGroup.append('circle')
-    .attr('r', d=> sizeScale(d.count))
+    //.attr('r', d=> sizeScale(d.count))
+
+.attr("r", d => {
+    const textLen = d.id.length;
+    const minR = 10;
+    const r = Math.max(minR, textLen * 4.5);  // accommodate long labels
+    return r;
+})
+
     //.attr('fill','#1f77b4')
     .attr('fill','#fff0')
     //.attr('stroke','#fff')
@@ -192,20 +257,143 @@ function renderGraph(graph){
     //.attr('fill',d=> `rgb(255,255,${rgbScale(d.count)})`)
     //.attr('fill','#1f77b4')
     .attr('fill',d=>`rgb(${rgbScale(d.count)},${rgbScale(d.count)},255)`)
-    //.style('font-size',`${parseInt(d=>d.count)*100}px`)
-    .style('font-size',(d=> sizeScale(d.count)))
-    //.style('font-size','10px')
+
+    //.style('font-size',(d=> sizeScale(d.count)))
+
+    .style("font-size", d => {
+    const r = sizeScale(d.count);
+    let size = r * 0.9;   // proportional to node radius
+    const minSize = 7;
+    const maxSize = 24;
+    size = Math.max(minSize, Math.min(maxSize, size));
+    return size + "px";
+})
+  
     .text(d=> d.id);
+    
 
   // tick
-  simulation.on('tick', ()=>{
-    linkGroup
-      .attr('x1', d=> d.source.x)
-      .attr('y1', d=> d.source.y)
-      .attr('x2', d=> d.target.x)
-      .attr('y2', d=> d.target.y);
-    nodeGroup.attr('transform', d=> `translate(${d.x},${d.y})`);
+  // simulation.on('tick', ()=>{
+  //   linkGroup
+  //     .attr('x1', d=> d.source.x)
+  //     .attr('y1', d=> d.source.y)
+  //     .attr('x2', d=> d.target.x)
+  //     .attr('y2', d=> d.target.y);
+  //   nodeGroup.attr('transform', d=> `translate(${d.x},${d.y})`);
+  // });
+  ///////////////////////////////////////////
+
+simulation.on('tick', ()=>{
+  linkGroup.each(function(d) {
+    const rSource = sizeScale(d.source.count);
+    const rTarget = sizeScale(d.target.count);
+
+    const dx = d.target.x - d.source.x;
+    const dy = d.target.y - d.source.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    // Unit vector
+    const ux = dx / dist;
+    const uy = dy / dist;
+
+    // Start and end points *at the edge* of each node
+    const x1 = d.source.x + ux * rSource;
+    const y1 = d.source.y + uy * rSource;
+    const x2 = d.target.x - ux * rTarget;
+    const y2 = d.target.y - uy * rTarget;
+
+    d3.select(this)
+      .attr("x1", x1)
+      .attr("y1", y1)
+      .attr("x2", x2)
+      .attr("y2", y2);
   });
+  nodeGroup.attr('transform', d=> `translate(${d.x},${d.y})`);
+});
+
+// simulation.on("tick", () => {
+//   linkGroup.each(function (d) {
+//     const rSource = sizeScale(d.source.count);
+//     const rTarget = sizeScale(d.target.count);
+
+//     const dx = d.target.x - d.source.x;
+//     const dy = d.target.y - d.source.y;
+//     const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+
+//     // Unit vector
+//     const ux = dx / dist;
+//     const uy = dy / dist;
+
+//     // Start and end points at node boundaries
+//     const x1 = d.source.x + ux * rSource;
+//     const y1 = d.source.y + uy * rSource;
+//     const x2 = d.target.x - ux * rTarget;
+//     const y2 = d.target.y - uy * rTarget;
+
+//     // Compute midpoint
+//     const mx = (x1 + x2) / 2;
+//     const my = (y1 + y2) / 2;
+
+//     // Perpendicular for curvature
+//     const nx = -uy;
+//     const ny = ux;
+
+//     // Curvature strength (tweakable)
+//     const curvature = Math.min(60, dist * 0.25);
+
+//     // Control point
+//     const cx = mx + nx * curvature;
+//     const cy = my + ny * curvature;
+
+//     // Draw curved link (quadratic Bezier)
+//     d3.select(this)
+//       .select("path")
+//       .attr("d", `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`);
+//   });
+
+//   nodeGroup.attr("transform", d => `translate(${d.x},${d.y})`);
+// });
+
+// simulation.on("tick", () => {
+//   linkGroup.each(function (d) {
+
+//     // Normalize source/target
+//     const s = (typeof d.source === "object") ? d.source : graph.nodes.find(n => n.id === d.source);
+//     const t = (typeof d.target === "object") ? d.target : graph.nodes.find(n => n.id === d.target);
+
+//     const rSource = sizeScale(s.count);
+//     const rTarget = sizeScale(t.count);
+
+//     let dx = t.x - s.x;
+//     let dy = t.y - s.y;
+//     const dist = Math.sqrt(dx*dx + dy*dy);
+
+//     if (!isFinite(dist) || dist < 1) return;
+
+//     const ux = dx / dist;
+//     const uy = dy / dist;
+
+//     // endpoints at circle edges
+//     const x1 = s.x + ux * rSource;
+//     const y1 = s.y + uy * rSource;
+//     const x2 = t.x - ux * rTarget;
+//     const y2 = t.y - uy * rTarget;
+
+//     // midpoint + perpendicular curvature
+//     const mx = (x1 + x2) / 2;
+//     const my = (y1 + y2) / 2;
+
+//     const curvature = Math.max(20, dist * 0.15);
+//     const cx = mx + (-uy) * curvature;
+//     const cy = my + (ux) * curvature;
+
+//     const dStr = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+
+//     d3.select(this).select("path.link-path").attr("d", dStr);
+//   });
+
+//   nodeGroup.attr("transform", d => `translate(${d.x}, ${d.y})`);
+// });
 
   // fill sidepanel frequency list
   const freqList = d3.select('#freqList');
@@ -261,7 +449,8 @@ document.getElementById('generate').addEventListener('click', ()=>{
   if(!txt){ alert('Insira o texto no campo acima.'); return; }
   const opts = {
     relationType: document.getElementById('relationType').value,
-    windowSize: +document.getElementById('windowSize').value,
+    relationWord: document.getElementById('relationWord').value,
+    //windowSize: +document.getElementById('windowSize').value,
     useStopwords: document.getElementById('useStopwords').checked,
     minEdgeWeight: +document.getElementById('minEdgeWeight').value,
     topN: +document.getElementById('topN').value

@@ -25,14 +25,29 @@
         <div>
           <label for="relationType">Tipo de relação</label>
           <select id="relationType">
-            <option value="window">Coocorrência em janela</option>
-            <option value="sentence">Coocorrência na mesma frase</option>
+            <!-- <option value="window">Coocorrência em janela</option> -->
+            <option value="sentence">Link sintático (Coocorrência na mesma frase)</option>
+            <option value="orthographic">Link ortográfico (Selecione a relação ao lado)</option>
           </select>
         </div>
 
         <div>
-          <label for="windowSize">Tamanho da janela (palavras)</label>
-          <input id="windowSize" type="number" min="1" max="10" value="3" />
+          <!-- <label for="windowSize">Tamanho da janela (palavras)</label>
+          <input id="windowSize" type="number" min="1" max="10" value="3" /> -->
+          <label for="relationWord">Tipo de relação</label>
+          <select id="relationWord">
+            <option value="and">A and B</option>
+            <option value="is">A is B</option>
+            <option value="of">A of B</option>
+            <option value="the">A the B</option>
+            <option value="a">A a B</option>
+            <option value="at">A at B</option>
+            <option value="is a">A is a B</option>
+            <option value="is at">A is at B</option>
+            <option value="is the">A is the B</option>
+            <option value="of the">A of the B</option>
+            <option value="at the">A at the B</option>
+          </select>
         </div>
       </div>
 
@@ -55,13 +70,30 @@
       </div>
 
       <div class="control-row meta">
-        <small>Exibir apenas os <strong>top</strong> <input id="topN" type="number" min="10" max="1000" value="200" style="width:80px;" /> palavras por frequência.</small>
+        <small>Exibir apenas os <strong>top</strong> <input id="topN" type="number" min="10" max="1000" value="100" style="width:80px;" /> palavras por frequência.</small>
       </div>
     </section>
 
     <section id="visualization">
       <svg id="svgCanvas" width="1000" height="700"></svg>
       <aside id="sidepanel">
+        <!-- <h3>Selecione a relação</h3>
+        <div>
+          <label for="relationWord">Tipo de relação</label>
+          <select id="relationWord">
+            <option value="and">A and B</option>
+            <option value="is">A is B</option>
+            <option value="of">A of B</option>
+            <option value="the">A the B</option>
+            <option value="a">A a B</option>
+            <option value="at">A at B</option>
+            <option value="is a">A is a B</option>
+            <option value="is at">A is at B</option>
+            <option value="is the">A is the B</option>
+            <option value="of the">A of the B</option>
+            <option value="at the">A at the B</option>
+          </select>
+        </div> -->
         <h3>Detalhes do nó</h3>
         <div id="nodeDetails">Selecione um nó para ver detalhes.</div>
         <h4>Palavras mais frequentes</h4>
@@ -71,7 +103,7 @@
   </main>
 
   <footer>
-    <p>Protótipo MVP — processamento totalmente em browser. Desenvolvido para disciplina <a href="equipe.html">FT107 - Visualização de Informação</a>.</p>
+    <p>Protótipo MVP — processamento totalmente em browser. Desenvolvido para disciplina de Visualização de Informação.</p>
   </footer>
 
   <script src="script.js"></script>
